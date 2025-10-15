@@ -35,16 +35,10 @@ const HomePage = () => {
             <p className="text-lg md:text-xl text-on-surface-secondary mb-8 max-w-2xl mx-auto">
               Explore receitas autênticas da culinária brasileira e compartilhe suas próprias criações com nossa comunidade apaixonada por gastronomia.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                to="/add-recipe"
-                className="inline-flex items-center justify-center px-8 py-4 bg-primary hover:bg-primary-focus text-primary-foreground font-semibold rounded-full transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-              >
-                Publicar Receita
-              </Link>
+            <div className="flex justify-center">
               <a
                 href="#recipes"
-                className="inline-flex items-center justify-center px-8 py-4 bg-surface hover:bg-muted text-on-surface font-semibold rounded-full transition-all duration-300 shadow-md"
+                className="inline-flex items-center justify-center px-8 py-4 bg-primary hover:bg-primary-focus text-primary-foreground font-semibold rounded-full transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
               >
                 Explorar Receitas
               </a>
@@ -84,15 +78,9 @@ const HomePage = () => {
               <h3 className="text-xl font-semibold text-on-surface mb-2">
                 Nenhuma receita encontrada
               </h3>
-              <p className="text-on-surface-secondary mb-6">
-                Seja o primeiro a compartilhar uma receita incrível!
+              <p className="text-on-surface-secondary">
+                Em breve teremos receitas deliciosas para você explorar!
               </p>
-              <Link
-                to="/add-recipe"
-                className="inline-flex items-center justify-center px-6 py-3 bg-primary hover:bg-primary-focus text-primary-foreground font-semibold rounded-full transition-colors"
-              >
-                Publicar Receita
-              </Link>
             </div>
           )}
         </div>

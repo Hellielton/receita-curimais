@@ -44,12 +44,13 @@ export const Header = () => {
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center space-x-3">
-            <Link to="/add-recipe">
-              <Button variant="default" className="rounded-full">
-                Publicar Receita
-              </Button>
-            </Link>
-            {!isAuthenticated && (
+            {isAuthenticated ? (
+              <Link to="/add-recipe">
+                <Button variant="default" className="rounded-full">
+                  Publicar Receita
+                </Button>
+              </Link>
+            ) : (
               <Link to="/auth">
                 <Button variant="outline" className="rounded-full">
                   Entrar
@@ -96,16 +97,17 @@ export const Header = () => {
                 </Link>
               </>
             )}
-            <Link
-              to="/add-recipe"
-              className="block"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <Button variant="default" className="w-full rounded-full">
-                Publicar Receita
-              </Button>
-            </Link>
-            {!isAuthenticated && (
+            {isAuthenticated ? (
+              <Link
+                to="/add-recipe"
+                className="block"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <Button variant="default" className="w-full rounded-full">
+                  Publicar Receita
+                </Button>
+              </Link>
+            ) : (
               <Link
                 to="/auth"
                 className="block"
