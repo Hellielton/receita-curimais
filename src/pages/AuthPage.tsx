@@ -1,14 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 import { ChefHat } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const AuthPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [registerData, setRegisterData] = useState({
     name: "",
@@ -16,16 +21,89 @@ const AuthPage = () => {
     password: "",
   });
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Login realizado com sucesso!");
-    setTimeout(() => navigate("/"), 1000);
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: loginData.email,
+        password: loginData.password,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Login realizado!",
+        description: "Bem-vindo de volta ao CuriMais.",
+      });
+      
+      navigate("/dashboard");
+    } catch (error: any) {
+      toast({
+        title: "Erro no login",
+        description: error.message === "Invalid login credentials"
+          ? "E-mail ou senha incorretos."
+          : error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Cadastro realizado com sucesso!");
-    setTimeout(() => navigate("/"), 1000);
+    
+    if (registerData.password.length < 6) {
+      toast({
+        title: "Senha muito curta",
+        description: "A senha deve ter pelo menos 6 caracteres.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: registerData.email,
+        password: registerData.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+          data: {
+            full_name: registerData.name,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Cadastro realizado!",
+        description: "Sua conta foi criada com sucesso. Você já pode acessar.",
+      });
+      
+      navigate("/dashboard");
+    } catch (error: any) {
+      toast({
+        title: "Erro no cadastro",
+        description: error.message === "User already registered"
+          ? "Este e-mail já está cadastrado."
+          : error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -87,8 +165,12 @@ const AuthPage = () => {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full py-6 rounded-full mt-6">
-                  Entrar
+                <Button 
+                  type="submit" 
+                  className="w-full py-6 rounded-full mt-6"
+                  disabled={loading}
+                >
+                  {loading ? "Entrando..." : "Entrar"}
                 </Button>
               </form>
             </TabsContent>
@@ -143,8 +225,12 @@ const AuthPage = () => {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full py-6 rounded-full mt-6">
-                  Cadastrar
+                <Button 
+                  type="submit" 
+                  className="w-full py-6 rounded-full mt-6"
+                  disabled={loading}
+                >
+                  {loading ? "Cadastrando..." : "Cadastrar"}
                 </Button>
               </form>
             </TabsContent>

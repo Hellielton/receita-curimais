@@ -1,11 +1,33 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Menu, X, ChefHat } from "lucide-react";
+import { Menu, X, ChefHat, LogOut } from "lucide-react";
 import { Button } from "./ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isAuthenticated] = useState(false); // Simulated auth state
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate("/");
+      toast({
+        title: "Logout realizado",
+        description: "Você saiu da sua conta com sucesso.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao sair",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <header className="bg-surface shadow-md sticky top-0 z-50">
@@ -24,8 +46,14 @@ export const Header = () => {
             >
               Home
             </Link>
-            {isAuthenticated && (
+            {user && (
               <>
+                <Link
+                  to="/dashboard"
+                  className="text-on-surface-secondary hover:text-primary font-medium transition-colors"
+                >
+                  Dashboard
+                </Link>
                 <Link
                   to="/my-recipes"
                   className="text-on-surface-secondary hover:text-primary font-medium transition-colors"
@@ -44,12 +72,22 @@ export const Header = () => {
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center space-x-3">
-            {isAuthenticated ? (
-              <Link to="/add-recipe">
-                <Button variant="default" className="rounded-full">
-                  Publicar Receita
+            {user ? (
+              <>
+                <Link to="/add-recipe">
+                  <Button variant="default" className="rounded-full">
+                    Publicar Receita
+                  </Button>
+                </Link>
+                <Button 
+                  variant="outline" 
+                  className="rounded-full"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sair
                 </Button>
-              </Link>
+              </>
             ) : (
               <Link to="/auth">
                 <Button variant="outline" className="rounded-full">
@@ -79,8 +117,15 @@ export const Header = () => {
             >
               Home
             </Link>
-            {isAuthenticated && (
+            {user && (
               <>
+                <Link
+                  to="/dashboard"
+                  className="block text-on-surface-secondary hover:text-primary font-medium transition-colors py-2"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Dashboard
+                </Link>
                 <Link
                   to="/my-recipes"
                   className="block text-on-surface-secondary hover:text-primary font-medium transition-colors py-2"
@@ -97,16 +142,29 @@ export const Header = () => {
                 </Link>
               </>
             )}
-            {isAuthenticated ? (
-              <Link
-                to="/add-recipe"
-                className="block"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <Button variant="default" className="w-full rounded-full">
-                  Publicar Receita
+            {user ? (
+              <>
+                <Link
+                  to="/add-recipe"
+                  className="block"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <Button variant="default" className="w-full rounded-full">
+                    Publicar Receita
+                  </Button>
+                </Link>
+                <Button 
+                  variant="outline" 
+                  className="w-full rounded-full"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    handleLogout();
+                  }}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sair
                 </Button>
-              </Link>
+              </>
             ) : (
               <Link
                 to="/auth"

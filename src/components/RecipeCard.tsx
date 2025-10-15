@@ -1,11 +1,14 @@
 import { Recipe } from "@/types";
 import { StarRating } from "./StarRating";
+import { cn } from "@/lib/utils";
 
 interface RecipeCardProps {
   recipe: Recipe;
+  onRate?: (rating: number) => void;
+  userRating?: number;
 }
 
-export const RecipeCard = ({ recipe }: RecipeCardProps) => {
+export const RecipeCard = ({ recipe, onRate, userRating }: RecipeCardProps) => {
   return (
     <div className="bg-surface rounded-2xl shadow-lg overflow-hidden transform hover:-translate-y-2 transition-all duration-300 ease-in-out flex flex-col h-full group">
       <div className="relative overflow-hidden">
@@ -29,7 +32,23 @@ export const RecipeCard = ({ recipe }: RecipeCardProps) => {
         </p>
         
         <div className="flex items-center justify-between pt-3 border-t border-border">
-          <StarRating rating={recipe.rating} ratingsCount={recipe.ratingsCount} />
+          {onRate ? (
+            <div className="flex flex-col gap-1">
+              <StarRating 
+                rating={userRating || 0} 
+                size={20}
+                interactive
+                onChange={onRate}
+              />
+              {userRating && (
+                <span className="text-xs text-on-surface-secondary">
+                  Sua avaliação: {userRating}
+                </span>
+              )}
+            </div>
+          ) : (
+            <StarRating rating={recipe.rating} ratingsCount={recipe.ratingsCount} />
+          )}
           <span className="text-xs text-on-surface-secondary">
             Por {recipe.authorName}
           </span>
