@@ -5,11 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const AddRecipePage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>("");
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -18,18 +24,93 @@ const AddRecipePage = () => {
     instructions: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("A imagem deve ter no máximo 5MB");
+        return;
+      }
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!user) {
+      toast.error("Você precisa estar logado para publicar receitas");
+      navigate("/auth");
+      return;
+    }
+
     if (!formData.name || !formData.description || !formData.category) {
       toast.error("Por favor, preencha todos os campos obrigatórios");
       return;
     }
 
-    toast.success("Receita publicada com sucesso!");
-    setTimeout(() => {
-      navigate("/");
-    }, 1500);
+    if (!imageFile) {
+      toast.error("Por favor, adicione uma imagem para a receita");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Upload image to storage
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('recipe-images')
+        .upload(fileName, imageFile);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('recipe-images')
+        .getPublicUrl(fileName);
+
+      // Parse ingredients and instructions
+      const ingredientsArray = formData.ingredients
+        .split('\n')
+        .filter(line => line.trim() !== '');
+      
+      const instructionsArray = formData.instructions
+        .split('\n')
+        .filter(line => line.trim() !== '');
+
+      // Insert recipe into database
+      const { error: insertError } = await supabase
+        .from('recipes')
+        .insert({
+          title: formData.name,
+          description: formData.description,
+          category: formData.category,
+          ingredients: ingredientsArray,
+          instructions: instructionsArray,
+          image_url: publicUrl,
+          user_id: user.id,
+        });
+
+      if (insertError) throw insertError;
+
+      toast.success("Receita publicada com sucesso!");
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 1500);
+    } catch (error) {
+      console.error("Error publishing recipe:", error);
+      toast.error("Erro ao publicar receita. Tente novamente.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (
@@ -58,6 +139,45 @@ const AddRecipePage = () => {
           </h1>
           
           <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <Label htmlFor="image" className="text-on-surface font-medium">
+                Imagem da Receita *
+              </Label>
+              <div className="mt-2">
+                <Input
+                  id="image"
+                  name="image"
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  onChange={handleImageChange}
+                  className="hidden"
+                  required
+                />
+                <Label
+                  htmlFor="image"
+                  className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-xl cursor-pointer hover:bg-surface-secondary transition-colors"
+                >
+                  {imagePreview ? (
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-full h-full object-cover rounded-xl"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <Upload className="w-12 h-12 text-on-surface-secondary mb-2" />
+                      <span className="text-on-surface-secondary">
+                        Clique para adicionar uma imagem
+                      </span>
+                      <span className="text-xs text-on-surface-secondary mt-1">
+                        JPG, PNG ou WEBP (máx. 5MB)
+                      </span>
+                    </div>
+                  )}
+                </Label>
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="name" className="text-on-surface font-medium">
                 Nome da Receita *
@@ -139,14 +259,16 @@ const AddRecipePage = () => {
             <div className="flex gap-4 pt-4">
               <Button
                 type="submit"
+                disabled={isSubmitting}
                 className="flex-1 py-6 text-base font-semibold rounded-full"
               >
-                Publicar Receita
+                {isSubmitting ? "Publicando..." : "Publicar Receita"}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => navigate("/")}
+                disabled={isSubmitting}
                 className="px-8 py-6 rounded-full"
               >
                 Cancelar
