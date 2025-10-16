@@ -5,11 +5,14 @@ import { RecipeCard } from "@/components/RecipeCard";
 import { supabase } from "@/integrations/supabase/client";
 import { UtensilsCrossed } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const HomePage = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userRatings, setUserRatings] = useState<Map<string, number>>(new Map());
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     const loadRecipes = async () => {
@@ -77,6 +80,20 @@ const HomePage = () => {
         }));
 
         setRecipes(formattedRecipes);
+
+        // Buscar avaliações do usuário se estiver autenticado
+        if (user) {
+          const { data: userRatingsData } = await supabase
+            .from('ratings')
+            .select('recipe_id, rating')
+            .eq('user_id', user.id)
+            .in('recipe_id', recipeIds);
+
+          const ratingsMap = new Map(
+            userRatingsData?.map(r => [r.recipe_id, r.rating]) || []
+          );
+          setUserRatings(ratingsMap);
+        }
       } catch (error) {
         console.error('Erro ao carregar receitas:', error);
         toast({
@@ -91,7 +108,77 @@ const HomePage = () => {
     };
 
     loadRecipes();
-  }, [toast]);
+  }, [toast, user]);
+
+  const handleRate = async (recipeId: string, rating: number) => {
+    if (!user) {
+      toast({
+        title: "Faça login para avaliar",
+        description: "Você precisa estar autenticado para avaliar receitas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('ratings')
+        .upsert({
+          recipe_id: recipeId,
+          user_id: user.id,
+          rating: rating,
+        }, {
+          onConflict: 'recipe_id,user_id'
+        });
+
+      if (error) throw error;
+
+      setUserRatings(prev => new Map(prev).set(recipeId, rating));
+      
+      toast({
+        title: "Avaliação registrada",
+        description: `Você avaliou esta receita com ${rating} estrelas.`,
+      });
+
+      // Recarregar receitas para atualizar a média
+      const { data: recipesData } = await supabase
+        .from('recipes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (recipesData) {
+        const recipeIds = recipesData.map(r => r.id);
+        const { data: ratingsData } = await supabase
+          .from('ratings')
+          .select('recipe_id, rating')
+          .in('recipe_id', recipeIds);
+
+        const ratingsMap = new Map<string, { avg: number; count: number }>();
+        ratingsData?.forEach(r => {
+          const current = ratingsMap.get(r.recipe_id) || { avg: 0, count: 0, sum: 0 };
+          const sum = (current.avg * current.count) + r.rating;
+          const count = current.count + 1;
+          ratingsMap.set(r.recipe_id, {
+            avg: sum / count,
+            count: count,
+          });
+        });
+
+        setRecipes(prev => prev.map(recipe => ({
+          ...recipe,
+          rating: ratingsMap.get(recipe.id)?.avg || 0,
+          ratingsCount: ratingsMap.get(recipe.id)?.count || 0,
+        })));
+      }
+    } catch (error) {
+      console.error('Erro ao avaliar receita:', error);
+      toast({
+        title: "Erro ao avaliar",
+        description: "Não foi possível registrar sua avaliação.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -139,7 +226,11 @@ const HomePage = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {recipes.map((recipe) => (
                 <Link to={`/recipe/${recipe.id}`} key={recipe.id} className="block">
-                  <RecipeCard recipe={recipe} />
+                  <RecipeCard 
+                    recipe={recipe}
+                    onRate={user ? (rating) => handleRate(recipe.id, rating) : undefined}
+                    userRating={userRatings.get(recipe.id)}
+                  />
                 </Link>
               ))}
             </div>
