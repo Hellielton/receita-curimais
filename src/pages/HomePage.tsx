@@ -2,25 +2,96 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Recipe } from "@/types";
 import { RecipeCard } from "@/components/RecipeCard";
-import { MOCK_RECIPES } from "@/services/mockRecipes";
+import { supabase } from "@/integrations/supabase/client";
 import { UtensilsCrossed } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const HomePage = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Simulate API call
     const loadRecipes = async () => {
       setLoading(true);
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setRecipes(MOCK_RECIPES);
-      setLoading(false);
+      try {
+        // Buscar todas as receitas
+        const { data: recipesData, error: recipesError } = await supabase
+          .from('recipes')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (recipesError) throw recipesError;
+
+        if (!recipesData || recipesData.length === 0) {
+          setRecipes([]);
+          setLoading(false);
+          return;
+        }
+
+        // Buscar profiles dos autores
+        const userIds = [...new Set(recipesData.map(r => r.user_id))];
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', userIds);
+
+        // Criar mapa de profiles
+        const profilesMap = new Map(
+          profilesData?.map(p => [p.id, p.full_name || 'Usuário']) || []
+        );
+
+        // Buscar todos os ratings
+        const recipeIds = recipesData.map(r => r.id);
+        const { data: ratingsData } = await supabase
+          .from('ratings')
+          .select('recipe_id, rating')
+          .in('recipe_id', recipeIds);
+
+        // Criar mapa de ratings por receita
+        const ratingsMap = new Map<string, { avg: number; count: number }>();
+        ratingsData?.forEach(rating => {
+          const current = ratingsMap.get(rating.recipe_id) || { avg: 0, count: 0, sum: 0 };
+          const sum = (current.avg * current.count) + rating.rating;
+          const count = current.count + 1;
+          ratingsMap.set(rating.recipe_id, {
+            avg: sum / count,
+            count: count,
+          });
+        });
+
+        // Transformar dados para formato Recipe
+        const formattedRecipes: Recipe[] = recipesData.map(recipe => ({
+          id: recipe.id,
+          name: recipe.title,
+          description: recipe.description || '',
+          imagePrompt: '',
+          imageUrl: recipe.image_url || '/placeholder.svg',
+          ingredients: recipe.ingredients,
+          instructions: recipe.instructions,
+          authorId: recipe.user_id,
+          authorName: profilesMap.get(recipe.user_id) || 'Usuário',
+          category: recipe.category || 'Outros',
+          rating: ratingsMap.get(recipe.id)?.avg || 0,
+          ratingsCount: ratingsMap.get(recipe.id)?.count || 0,
+        }));
+
+        setRecipes(formattedRecipes);
+      } catch (error) {
+        console.error('Erro ao carregar receitas:', error);
+        toast({
+          title: "Erro ao carregar receitas",
+          description: "Não foi possível carregar as receitas.",
+          variant: "destructive",
+        });
+        setRecipes([]);
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadRecipes();
-  }, []);
+  }, [toast]);
 
   return (
     <div className="min-h-screen bg-background">
