@@ -1,27 +1,98 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Recipe } from "@/types";
 import { StarRating } from "@/components/StarRating";
-import { MOCK_RECIPES } from "@/services/mockRecipes";
+import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Clock, Users, ChefHat } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+
+interface RecipeData {
+  id: string;
+  title: string;
+  description: string | null;
+  image_url: string | null;
+  ingredients: string[];
+  instructions: string[];
+  category: string | null;
+  user_id: string;
+  prep_time: number | null;
+  cook_time: number | null;
+  servings: number | null;
+  difficulty: string | null;
+  author_name?: string;
+  rating?: number;
+  ratings_count?: number;
+}
 
 const RecipeDetailPage = () => {
   const { id } = useParams<{ id: string }>();
-  const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [recipe, setRecipe] = useState<RecipeData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const loadRecipe = async () => {
+      if (!id) return;
+      
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const foundRecipe = MOCK_RECIPES.find((r) => r.id === id);
-      setRecipe(foundRecipe || null);
-      setLoading(false);
+      try {
+        // Buscar receita
+        const { data: recipeData, error: recipeError } = await supabase
+          .from('recipes')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (recipeError) throw recipeError;
+        if (!recipeData) {
+          setRecipe(null);
+          setLoading(false);
+          return;
+        }
+
+        // Buscar perfil do autor
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', recipeData.user_id)
+          .maybeSingle();
+
+        // Buscar ratings
+        const { data: ratingsData } = await supabase
+          .from('ratings')
+          .select('rating')
+          .eq('recipe_id', id);
+
+        // Calcular média de ratings
+        let avgRating = 0;
+        let ratingsCount = 0;
+        if (ratingsData && ratingsData.length > 0) {
+          const sum = ratingsData.reduce((acc, r) => acc + r.rating, 0);
+          avgRating = sum / ratingsData.length;
+          ratingsCount = ratingsData.length;
+        }
+
+        setRecipe({
+          ...recipeData,
+          author_name: profileData?.full_name || 'Usuário',
+          rating: avgRating,
+          ratings_count: ratingsCount,
+        });
+      } catch (error) {
+        console.error('Erro ao carregar receita:', error);
+        toast({
+          title: "Erro ao carregar receita",
+          description: "Não foi possível carregar os dados da receita.",
+          variant: "destructive",
+        });
+        setRecipe(null);
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadRecipe();
-  }, [id]);
+  }, [id, toast]);
 
   if (loading) {
     return (
@@ -64,8 +135,8 @@ const RecipeDetailPage = () => {
             <div className="md:flex-shrink-0">
               <img
                 className="h-64 w-full object-cover md:h-full md:w-96 lg:w-[32rem]"
-                src={recipe.imageUrl}
-                alt={recipe.name}
+                src={recipe.image_url || '/placeholder.svg'}
+                alt={recipe.title}
               />
             </div>
             
@@ -75,7 +146,7 @@ const RecipeDetailPage = () => {
               </div>
               
               <h1 className="font-serif text-4xl lg:text-5xl font-bold text-on-surface mt-2 mb-4">
-                {recipe.name}
+                {recipe.title}
               </h1>
               
               <p className="text-lg text-on-surface-secondary mb-6">
@@ -83,10 +154,10 @@ const RecipeDetailPage = () => {
               </p>
               
               <div className="flex items-center gap-6 mb-6 flex-wrap">
-                <StarRating rating={recipe.rating} ratingsCount={recipe.ratingsCount} size={20} />
+                <StarRating rating={recipe.rating || 0} ratingsCount={recipe.ratings_count || 0} size={20} />
                 <div className="flex items-center text-on-surface-secondary">
                   <ChefHat size={18} className="mr-2" />
-                  <span className="text-sm">Por {recipe.authorName}</span>
+                  <span className="text-sm">Por {recipe.author_name}</span>
                 </div>
               </div>
               
