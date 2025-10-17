@@ -81,19 +81,29 @@ const HomePage = () => {
 
         setRecipes(formattedRecipes);
 
-        // Buscar avaliações do usuário se estiver autenticado
+        // Buscar avaliações do usuário
+        const userRatingsMap = new Map<string, number>();
+        
         if (user) {
+          // Usuário autenticado: buscar do banco
           const { data: userRatingsData } = await supabase
             .from('ratings')
             .select('recipe_id, rating')
             .eq('user_id', user.id)
             .in('recipe_id', recipeIds);
 
-          const ratingsMap = new Map(
-            userRatingsData?.map(r => [r.recipe_id, r.rating]) || []
-          );
-          setUserRatings(ratingsMap);
+          userRatingsData?.forEach(r => userRatingsMap.set(r.recipe_id, r.rating));
+        } else {
+          // Usuário não autenticado: buscar do localStorage
+          const localRatings = JSON.parse(localStorage.getItem('guestRatings') || '{}');
+          Object.entries(localRatings).forEach(([recipeId, rating]) => {
+            if (recipeIds.includes(recipeId)) {
+              userRatingsMap.set(recipeId, rating as number);
+            }
+          });
         }
+        
+        setUserRatings(userRatingsMap);
       } catch (error) {
         console.error('Erro ao carregar receitas:', error);
         toast({
@@ -111,27 +121,57 @@ const HomePage = () => {
   }, [toast, user]);
 
   const handleRate = async (recipeId: string, rating: number) => {
-    if (!user) {
-      toast({
-        title: "Faça login para avaliar",
-        description: "Você precisa estar autenticado para avaliar receitas.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
-      const { error } = await supabase
-        .from('ratings')
-        .upsert({
-          recipe_id: recipeId,
-          user_id: user.id,
-          rating: rating,
-        }, {
-          onConflict: 'recipe_id,user_id'
-        });
+      if (user) {
+        // Usuário autenticado: salvar no banco de dados
+        const { error } = await supabase
+          .from('ratings')
+          .upsert({
+            recipe_id: recipeId,
+            user_id: user.id,
+            rating: rating,
+          }, {
+            onConflict: 'recipe_id,user_id'
+          });
 
-      if (error) throw error;
+        if (error) throw error;
+
+        // Recarregar receitas para atualizar a média
+        const { data: recipesData } = await supabase
+          .from('recipes')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (recipesData) {
+          const recipeIds = recipesData.map(r => r.id);
+          const { data: ratingsData } = await supabase
+            .from('ratings')
+            .select('recipe_id, rating')
+            .in('recipe_id', recipeIds);
+
+          const ratingsMap = new Map<string, { avg: number; count: number }>();
+          ratingsData?.forEach(r => {
+            const current = ratingsMap.get(r.recipe_id) || { avg: 0, count: 0, sum: 0 };
+            const sum = (current.avg * current.count) + r.rating;
+            const count = current.count + 1;
+            ratingsMap.set(r.recipe_id, {
+              avg: sum / count,
+              count: count,
+            });
+          });
+
+          setRecipes(prev => prev.map(recipe => ({
+            ...recipe,
+            rating: ratingsMap.get(recipe.id)?.avg || 0,
+            ratingsCount: ratingsMap.get(recipe.id)?.count || 0,
+          })));
+        }
+      } else {
+        // Usuário não autenticado: salvar no localStorage
+        const localRatings = JSON.parse(localStorage.getItem('guestRatings') || '{}');
+        localRatings[recipeId] = rating;
+        localStorage.setItem('guestRatings', JSON.stringify(localRatings));
+      }
 
       setUserRatings(prev => new Map(prev).set(recipeId, rating));
       
@@ -139,37 +179,6 @@ const HomePage = () => {
         title: "Avaliação registrada",
         description: `Você avaliou esta receita com ${rating} estrelas.`,
       });
-
-      // Recarregar receitas para atualizar a média
-      const { data: recipesData } = await supabase
-        .from('recipes')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (recipesData) {
-        const recipeIds = recipesData.map(r => r.id);
-        const { data: ratingsData } = await supabase
-          .from('ratings')
-          .select('recipe_id, rating')
-          .in('recipe_id', recipeIds);
-
-        const ratingsMap = new Map<string, { avg: number; count: number }>();
-        ratingsData?.forEach(r => {
-          const current = ratingsMap.get(r.recipe_id) || { avg: 0, count: 0, sum: 0 };
-          const sum = (current.avg * current.count) + r.rating;
-          const count = current.count + 1;
-          ratingsMap.set(r.recipe_id, {
-            avg: sum / count,
-            count: count,
-          });
-        });
-
-        setRecipes(prev => prev.map(recipe => ({
-          ...recipe,
-          rating: ratingsMap.get(recipe.id)?.avg || 0,
-          ratingsCount: ratingsMap.get(recipe.id)?.count || 0,
-        })));
-      }
     } catch (error) {
       console.error('Erro ao avaliar receita:', error);
       toast({
@@ -228,7 +237,7 @@ const HomePage = () => {
                 <Link to={`/recipe/${recipe.id}`} key={recipe.id} className="block">
                   <RecipeCard 
                     recipe={recipe}
-                    onRate={user ? (rating) => handleRate(recipe.id, rating) : undefined}
+                    onRate={(rating) => handleRate(recipe.id, rating)}
                     userRating={userRatings.get(recipe.id)}
                   />
                 </Link>
