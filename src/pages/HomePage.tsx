@@ -3,14 +3,16 @@ import { Link } from "react-router-dom";
 import { Recipe } from "@/types";
 import { RecipeCard } from "@/components/RecipeCard";
 import { supabase } from "@/integrations/supabase/client";
-import { UtensilsCrossed } from "lucide-react";
+import { UtensilsCrossed, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { Input } from "@/components/ui/input";
 
 const HomePage = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRatings, setUserRatings] = useState<Map<string, number>>(new Map());
+  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -221,9 +223,21 @@ const HomePage = () => {
             <h2 className="font-serif text-4xl font-bold text-on-surface mb-4">
               Receitas em Destaque
             </h2>
-            <p className="text-on-surface-secondary text-lg max-w-2xl mx-auto">
+            <p className="text-on-surface-secondary text-lg max-w-2xl mx-auto mb-8">
               Seleção especial de receitas deliciosas criadas por nossa comunidade
             </p>
+            
+            {/* Search Bar */}
+            <div className="max-w-md mx-auto relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
+              <Input
+                type="text"
+                placeholder="Buscar receitas..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
           </div>
 
           {loading ? (
@@ -231,29 +245,38 @@ const HomePage = () => {
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mb-4"></div>
               <p className="text-on-surface-secondary">Carregando receitas deliciosas...</p>
             </div>
-          ) : recipes.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {recipes.map((recipe) => (
-                <Link to={`/recipe/${recipe.id}`} key={recipe.id} className="block">
-                  <RecipeCard 
-                    recipe={recipe}
-                    onRate={(rating) => handleRate(recipe.id, rating)}
-                    userRating={userRatings.get(recipe.id)}
-                  />
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-20 border-2 border-dashed border-border rounded-2xl">
-              <UtensilsCrossed className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-              <h3 className="text-xl font-semibold text-on-surface mb-2">
-                Nenhuma receita encontrada
-              </h3>
-              <p className="text-on-surface-secondary">
-                Em breve teremos receitas deliciosas para você explorar!
-              </p>
-            </div>
-          )}
+          ) : (() => {
+            const filteredRecipes = recipes.filter(recipe => 
+              recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              recipe.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              recipe.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              recipe.ingredients.some(ing => ing.toLowerCase().includes(searchTerm.toLowerCase()))
+            );
+
+            return filteredRecipes.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredRecipes.map((recipe) => (
+                  <Link to={`/recipe/${recipe.id}`} key={recipe.id} className="block">
+                    <RecipeCard 
+                      recipe={recipe}
+                      onRate={(rating) => handleRate(recipe.id, rating)}
+                      userRating={userRatings.get(recipe.id)}
+                    />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-20 border-2 border-dashed border-border rounded-2xl">
+                <UtensilsCrossed className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold text-on-surface mb-2">
+                  Nenhuma receita encontrada
+                </h3>
+                <p className="text-on-surface-secondary">
+                  Tente buscar com outros termos ou explore todas as receitas disponíveis.
+                </p>
+              </div>
+            );
+          })()}
         </div>
       </section>
     </div>
