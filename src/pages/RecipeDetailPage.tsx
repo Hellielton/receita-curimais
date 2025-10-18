@@ -1,10 +1,21 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { StarRating } from "@/components/StarRating";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Clock, Users, ChefHat } from "lucide-react";
+import { ArrowLeft, Clock, Users, ChefHat, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface RecipeData {
   id: string;
@@ -26,9 +37,12 @@ interface RecipeData {
 
 const RecipeDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     const loadRecipe = async () => {
@@ -93,6 +107,34 @@ const RecipeDetailPage = () => {
 
     loadRecipe();
   }, [id, toast]);
+
+  const handleDelete = async () => {
+    if (!recipe || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('recipes')
+        .delete()
+        .eq('id', recipe.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Receita excluída",
+        description: "Sua receita foi excluída com sucesso.",
+      });
+
+      navigate('/');
+    } catch (error) {
+      console.error('Erro ao excluir receita:', error);
+      toast({
+        title: "Erro ao excluir",
+        description: "Não foi possível excluir a receita.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -161,13 +203,23 @@ const RecipeDetailPage = () => {
                 </div>
               </div>
               
-              <div className="flex gap-4">
+              <div className="flex gap-4 flex-wrap">
                 <Button variant="default" className="rounded-full">
                   Adicionar aos Favoritos
                 </Button>
                 <Button variant="outline" className="rounded-full">
                   Compartilhar
                 </Button>
+                {user && user.id === recipe.user_id && (
+                  <Button 
+                    variant="destructive" 
+                    className="rounded-full"
+                    onClick={() => setShowDeleteDialog(true)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Excluir Receita
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -213,6 +265,24 @@ const RecipeDetailPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta receita? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
