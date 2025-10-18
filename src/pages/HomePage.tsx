@@ -228,15 +228,19 @@ const HomePage = () => {
             </p>
             
             {/* Search Bar */}
-            <div className="max-w-md mx-auto relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
-              <Input
-                type="text"
-                placeholder="Buscar receitas..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+            <div className="max-w-2xl mx-auto">
+              <div className="bg-card border-2 border-primary/30 rounded-2xl p-2 shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-primary h-6 w-6" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar receitas por nome, categoria ou ingredientes..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-14 h-14 text-lg border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
