@@ -7,6 +7,7 @@ import { UtensilsCrossed, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
+import Footer from "@/components/Footer";
 
 const HomePage = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -283,6 +284,7 @@ const HomePage = () => {
           })()}
         </div>
       </section>
+      <Footer />
     </div>
   );
 };
