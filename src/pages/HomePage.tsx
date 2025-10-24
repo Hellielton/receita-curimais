@@ -3,17 +3,21 @@ import { Link } from "react-router-dom";
 import { Recipe } from "@/types";
 import { RecipeCard } from "@/components/RecipeCard";
 import { supabase } from "@/integrations/supabase/client";
-import { UtensilsCrossed, Search } from "lucide-react";
+import { UtensilsCrossed, Search, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import Footer from "@/components/Footer";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
 const HomePage = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRatings, setUserRatings] = useState<Map<string, number>>(new Map());
   const [searchTerm, setSearchTerm] = useState("");
+  const [stats, setStats] = useState({ totalRecipes: 0, totalFavorites: 0 });
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -83,6 +87,20 @@ const HomePage = () => {
         }));
 
         setRecipes(formattedRecipes);
+
+        // Buscar estatísticas
+        const { count: recipesCount } = await supabase
+          .from('recipes')
+          .select('*', { count: 'exact', head: true });
+
+        const { count: favoritesCount } = await supabase
+          .from('favorites')
+          .select('*', { count: 'exact', head: true });
+
+        setStats({
+          totalRecipes: recipesCount || 0,
+          totalFavorites: favoritesCount || 0,
+        });
 
         // Buscar avaliações do usuário
         const userRatingsMap = new Map<string, number>();
@@ -214,6 +232,54 @@ const HomePage = () => {
               </a>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-12 bg-card/30">
+        <div className="container mx-auto px-4">
+          <Card className="max-w-4xl mx-auto border-2 border-primary/20 shadow-xl">
+            <CardHeader>
+              <CardTitle className="text-3xl font-serif flex items-center gap-2">
+                <TrendingUp className="h-8 w-8 text-primary" />
+                Estatísticas da Plataforma
+              </CardTitle>
+              <CardDescription className="text-base">
+                Acompanhe o crescimento da nossa comunidade gastronômica
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{
+                  value: {
+                    label: "Quantidade",
+                    color: "hsl(var(--primary))",
+                  },
+                }}
+                className="h-[300px] w-full"
+              >
+                <BarChart
+                  data={[
+                    { name: "Receitas Publicadas", value: stats.totalRecipes },
+                    { name: "Favoritos", value: stats.totalFavorites },
+                  ]}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="name" 
+                    angle={-15}
+                    textAnchor="end"
+                    height={80}
+                    className="text-sm"
+                  />
+                  <YAxis className="text-sm" />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
         </div>
       </section>
 
