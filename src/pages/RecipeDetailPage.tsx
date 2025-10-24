@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { StarRating } from "@/components/StarRating";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Clock, Users, ChefHat, Trash2 } from "lucide-react";
+import { ArrowLeft, Clock, Users, ChefHat, Trash2, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,6 +41,7 @@ const RecipeDetailPage = () => {
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -107,6 +108,79 @@ const RecipeDetailPage = () => {
 
     loadRecipe();
   }, [id, toast]);
+
+  useEffect(() => {
+    const checkFavorite = async () => {
+      if (!user || !id) return;
+
+      try {
+        const { data } = await supabase
+          .from('favorites')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('recipe_id', id)
+          .maybeSingle();
+
+        setIsFavorite(!!data);
+      } catch (error) {
+        console.error('Erro ao verificar favorito:', error);
+      }
+    };
+
+    checkFavorite();
+  }, [user, id]);
+
+  const handleToggleFavorite = async () => {
+    if (!user) {
+      toast({
+        title: "Login necessário",
+        description: "Você precisa estar logado para adicionar favoritos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!id) return;
+
+    try {
+      if (isFavorite) {
+        // Remove from favorites
+        const { error } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('recipe_id', id);
+
+        if (error) throw error;
+
+        setIsFavorite(false);
+        toast({
+          title: "Removido dos favoritos",
+          description: "A receita foi removida dos seus favoritos.",
+        });
+      } else {
+        // Add to favorites
+        const { error } = await supabase
+          .from('favorites')
+          .insert({ user_id: user.id, recipe_id: id });
+
+        if (error) throw error;
+
+        setIsFavorite(true);
+        toast({
+          title: "Adicionado aos favoritos",
+          description: "A receita foi adicionada aos seus favoritos.",
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar favorito:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar os favoritos.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleDelete = async () => {
     if (!recipe || !user) return;
@@ -204,8 +278,13 @@ const RecipeDetailPage = () => {
               </div>
               
               <div className="flex gap-4 flex-wrap">
-                <Button variant="default" className="rounded-full">
-                  Adicionar aos Favoritos
+                <Button 
+                  variant={isFavorite ? "secondary" : "default"} 
+                  className="rounded-full"
+                  onClick={handleToggleFavorite}
+                >
+                  <Heart className={`mr-2 h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
+                  {isFavorite ? 'Remover dos Favoritos' : 'Adicionar aos Favoritos'}
                 </Button>
                 <Button variant="outline" className="rounded-full">
                   Compartilhar
